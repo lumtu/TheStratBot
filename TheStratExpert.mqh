@@ -26,6 +26,7 @@ protected:
     double            m_moneyRisk;                  // Risk tolerance in base currency
     double            m_risk;                       // Risk tolerance in percentage points
     int               m_lotFactor;
+    bool              m_useFixLots;                 // Use fix lots
     bool              m_useTargets;
     bool              m_useExitTimeFrame;
     ENUM_TIMEFRAMES   m_exitTimeframe;
@@ -54,6 +55,9 @@ public:
     bool Init(void);
     void Deinit(void);
     bool Processing(void);
+    
+    void UseFixLots(bool useFixLots)
+    { m_useFixLots = useFixLots; }
     
     void UseExitTimeFrame(bool useExitTimeFrame) 
     { m_useExitTimeFrame = useExitTimeFrame; }
@@ -530,11 +534,8 @@ bool CTheStratExpert::SellMarket(double stopLoss, double takeProfit, string comm
 double CTheStratExpert::TradeSizeOptimized(double stopLoss)
 {
     
-//--- select lot size
-    bool MM  = false;  	// If true - Parabolic SAR based risk sizing
-
-    Print("Stop Loss in points : ", stopLoss);
-	if (!MM) 
+   // Print("Stop Loss in points : ", stopLoss);
+	if (m_useFixLots) 
         return (m_lots);
 
     double Size, RiskMoney, PositionSize = 0;
