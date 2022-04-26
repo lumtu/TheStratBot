@@ -28,8 +28,10 @@ protected:
     bool m_useFixLots; // Use fix lots
     bool m_useTargets;
     bool m_useExitTimeFrame;
+    bool m_useTargetTimeframe;
     ENUM_TIMEFRAMES m_exitTimeframe;
     ENUM_TIMEFRAMES m_entryTimeframe;
+    ENUM_TIMEFRAMES m_targetTimeframe;
     datetime m_lastBar;
     bool m_isBarBurned;
     double m_riskRatio;
@@ -73,7 +75,13 @@ public:
     {
         m_useExitTimeFrame = useExitTimeFrame;
     }
-
+    
+    void UseTargetTimeframe(bool useit, ENUM_TIMEFRAMES timeFrame)  
+    {
+      m_useTargetTimeframe = useit;
+      m_targetTimeframe = timeFrame;
+    }
+    
     void SetRR(double riskRatio, double rewardRatio)
     {
         m_riskRatio = riskRatio;
@@ -104,12 +112,14 @@ protected:
     bool LongOpened(void);
     bool ShortOpened(void);
 
-    bool BuyMarket(double stopLoss, double takeProfit, string comment);
-    bool SellMarket(double stopLoss, double takeProfit, string comment);
+    bool BuyMarket(double stopLoss, string comment);
+    bool SellMarket(double stopLoss, string comment);
     double TradeSizeOptimized(double stopLoss);
     double CalculateNormalizedDigits();
 
     bool IsNewBar();
+    
+    double FindTargetPrice(double stopLoss);
 };
 
 CTheStratExpert::CTheStratExpert(double lots,
@@ -374,20 +384,18 @@ bool CTheStratExpert::LongOpened(void)
         (m_c_htf3.TwoUp() || m_c_htf3.Three()) && m_c_htf3.IsGreen())
     {
 
-        double tp = 0.0;
-
         if (m_c_cur_0.TwoUp() && m_c_cur_0.IsGreen() &&
             m_c_cur_1.TwoDown() && m_c_cur_1.IsRed())
         {
             if (m_useReversal_22)
-                result = BuyMarket(longStopLoss, tp, "2-2 Bullish Reversal");
+                result = BuyMarket(longStopLoss, "2-2 Bullish Reversal");
         }
         else if (m_c_cur_0.TwoUp() && m_c_cur_0.IsGreen() && 
                  m_c_cur_1.One()   && 
                  m_c_cur_2.Three() && m_c_cur_2.IsRed() )
         {
             if (m_useReversal_312)
-                result = BuyMarket(longStopLoss, tp, "3-1-2 Bullish Reversal");
+                result = BuyMarket(longStopLoss, "3-1-2 Bullish Reversal");
         }
         else if (m_c_cur_0.TwoUp() && m_c_cur_0.IsGreen() && 
                  m_c_cur_1.One() && 
@@ -395,48 +403,48 @@ bool CTheStratExpert::LongOpened(void)
                  m_c_cur_3.Three() && m_c_cur_3.IsRed() )
         {
             if (m_useReversal_3112)
-                result = BuyMarket(longStopLoss, tp, "3-1-1-2 Bullish Reversal");
+                result = BuyMarket(longStopLoss, "3-1-1-2 Bullish Reversal");
         }
         else if (m_c_cur_0.TwoUp() && m_c_cur_0.IsGreen() &&
                  m_c_cur_1.TwoDown() && m_c_cur_1.IsGreen() &&
                  m_c_cur_2.Three() && m_c_cur_2.IsRed())
         {
             if (m_useReversal_322)
-                result = BuyMarket(longStopLoss, tp, "3-2-2  Bullish Reversal");
+                result = BuyMarket(longStopLoss, "3-2-2  Bullish Reversal");
         }
         else if (m_c_cur_0.TwoUp() && m_c_cur_0.IsGreen() &&
                  m_c_cur_1.One() &&
                  m_c_cur_2.TwoDown() && m_c_cur_2.IsRed())
         {
             if(m_useReversal_212)
-                result = BuyMarket(longStopLoss, tp, "2-1-2  Bullish Reversal");
+                result = BuyMarket(longStopLoss, "2-1-2  Bullish Reversal");
         }
         else if (m_c_cur_0.TwoUp() && m_c_cur_0.IsGreen() &&
                  m_c_cur_1.Three() && m_c_cur_1.IsRed())
         {
             if(m_useReversal_32)
-                result = BuyMarket(longStopLoss, tp, "3-2 Bullish Reversal");
+                result = BuyMarket(longStopLoss, "3-2 Bullish Reversal");
         }
         else if (m_c_cur_0.TwoUp() && m_c_cur_0.IsGreen() &&
                  m_c_cur_1.TwoDown() && m_c_cur_1.IsRed() &&
                  m_c_cur_2.One())
         {
             if(m_useReversal_122)
-                result = BuyMarket(longStopLoss, tp, "1-2-2 Bullish RevStrat");
+                result = BuyMarket(longStopLoss, "1-2-2 Bullish RevStrat");
         }
         else if (m_c_cur_0.TwoUp() && m_c_cur_0.IsGreen() &&
                  m_c_cur_1.One() &&
                  m_c_cur_2.TwoUp() && m_c_cur_2.IsGreen())
         {
             if(m_useContinuation_212)
-                result = BuyMarket(longStopLoss, tp, "2-1-2 Bullish Continuation");
+                result = BuyMarket(longStopLoss, "2-1-2 Bullish Continuation");
         }
         else if (m_c_cur_0.IsGreen() && m_c_cur_0.TwoUp() &&
                  m_c_cur_1.IsGreen() && m_c_cur_1.TwoUp() &&
                  m_c_cur_2.IsGreen() && m_c_cur_2.TwoUp())
         {
             if(m_useContinuation_222)
-                result = BuyMarket(longStopLoss, tp, "2-2-2 Bullish Continuation");
+                result = BuyMarket(longStopLoss, "2-2-2 Bullish Continuation");
         }
     }
     else
@@ -459,20 +467,18 @@ bool CTheStratExpert::ShortOpened(void)
         (m_c_htf3.TwoDown() || m_c_htf3.Three()) && m_c_htf3.IsRed())
     {
 
-        double tp = 0.0;
-
         if (m_c_cur_0.TwoDown() && m_c_cur_0.IsRed() &&
             m_c_cur_1.TwoUp() && m_c_cur_1.IsGreen())
         {
             if(m_useReversal_22)
-                result = SellMarket(shortStopLoss, tp, "2-2 Bearish Reversal");
+                result = SellMarket(shortStopLoss, "2-2 Bearish Reversal");
         }
         else if (m_c_cur_0.TwoDown() && m_c_cur_0.IsRed() && 
                  m_c_cur_1.One() && 
                  m_c_cur_2.Three() && m_c_cur_2.IsGreen())
         {
             if(m_useReversal_312)
-                result = SellMarket(shortStopLoss, tp, "3-1-2  Bearish Reversal");
+                result = SellMarket(shortStopLoss, "3-1-2  Bearish Reversal");
         }
         else if (m_c_cur_0.TwoDown() && m_c_cur_0.IsRed() && 
                  m_c_cur_1.One() && 
@@ -480,48 +486,48 @@ bool CTheStratExpert::ShortOpened(void)
                  m_c_cur_3.Three() && m_c_cur_3.IsGreen())
         {
             if(m_useReversal_3112)
-                result = SellMarket(shortStopLoss, tp, "3-1-1-2  Bearish Reversal");
+                result = SellMarket(shortStopLoss, "3-1-1-2  Bearish Reversal");
         }
         else if (m_c_cur_0.TwoDown() && m_c_cur_0.IsRed() &&
                  m_c_cur_1.TwoUp() && m_c_cur_1.IsRed() &&
                  m_c_cur_2.Three() && m_c_cur_2.IsGreen())
         {
             if(m_useReversal_322)
-                result = SellMarket(shortStopLoss, tp, "3-2-2  Bearish Reversal");
+                result = SellMarket(shortStopLoss, "3-2-2  Bearish Reversal");
         }
         else if (m_c_cur_0.TwoDown() && m_c_cur_0.IsRed() &&
                  m_c_cur_1.One() &&
                  m_c_cur_2.TwoUp() && m_c_cur_2.IsGreen())
         {
             if(m_useReversal_212)
-                result = SellMarket(shortStopLoss, tp, "2-1-2  Bearish Reversal");
+                result = SellMarket(shortStopLoss, "2-1-2  Bearish Reversal");
         }
         else if (m_c_cur_0.TwoDown() && m_c_cur_0.IsRed() &&
                  m_c_cur_1.Three() && m_c_cur_1.IsGreen())
         {
             if(m_useReversal_32)
-                result = SellMarket(shortStopLoss, tp, "3-2  Bearish Reversal");
+                result = SellMarket(shortStopLoss, "3-2  Bearish Reversal");
         }
         else if (m_c_cur_0.TwoDown() && m_c_cur_0.IsRed() &&
                  m_c_cur_1.TwoUp() && m_c_cur_1.IsGreen() &&
                  m_c_cur_2.One())
         {
             if(m_useReversal_122)
-                result = SellMarket(shortStopLoss, tp, "1-2-2 Bearish RevStrat");
+                result = SellMarket(shortStopLoss, "1-2-2 Bearish RevStrat");
         }
         else if (m_c_cur_0.TwoDown() && m_c_cur_0.IsRed() &&
                  m_c_cur_1.One() &&
                  m_c_cur_2.TwoDown() && m_c_cur_2.IsRed())
         {
             if(m_useContinuation_212)
-                result = SellMarket(shortStopLoss, tp, "2-1-2 Bearish Continuation");
+                result = SellMarket(shortStopLoss, "2-1-2 Bearish Continuation");
         }
         else if (m_c_cur_0.TwoDown() && m_c_cur_0.IsRed() &&
                  m_c_cur_1.TwoDown() && m_c_cur_1.IsRed() &&
                  m_c_cur_2.TwoDown() && m_c_cur_2.IsRed())
         {
             if(m_useContinuation_222)
-                result = SellMarket(shortStopLoss, tp, "2-2-2 Bearish Continuation");
+                result = SellMarket(shortStopLoss, "2-2-2 Bearish Continuation");
         }
     }
     else
@@ -536,14 +542,15 @@ bool CTheStratExpert::ShortOpened(void)
 //+------------------------------------------------------------------+
 //| Buy                                                              |
 //+------------------------------------------------------------------+
-bool CTheStratExpert::BuyMarket(double stopLoss, double takeProfit, string comment)
+bool CTheStratExpert::BuyMarket(double stopLoss, string comment)
 {
     // printf("Sending buy order for %s", Symbol());
 
     bool res = false;
     double price = m_symbol.Ask();
     double lots = TradeSizeOptimized(price - stopLoss);
-
+    double takeProfit = FindTargetPrice(stopLoss);
+    
     //--- check for free money
     if (m_account.FreeMarginCheck(_Symbol, ORDER_TYPE_BUY, lots, price) < 0.0)
     {
@@ -569,13 +576,15 @@ bool CTheStratExpert::BuyMarket(double stopLoss, double takeProfit, string comme
 //+------------------------------------------------------------------+
 //| Sell                                                             |
 //+------------------------------------------------------------------+
-bool CTheStratExpert::SellMarket(double stopLoss, double takeProfit, string comment)
+bool CTheStratExpert::SellMarket(double stopLoss, string comment)
 {
     // Print("Sending sell order for ", Symbol());
 
     bool res = false;
     double price = m_symbol.Bid();
     double lots = TradeSizeOptimized(stopLoss - price);
+
+    double takeProfit = FindTargetPrice(stopLoss);
 
     //--- check for free money
     if (m_account.FreeMarginCheck(_Symbol, ORDER_TYPE_SELL, lots, price) < 0.0)
@@ -686,4 +695,51 @@ bool CTheStratExpert::IsNewBar()
     {
         return (false);
     }
+}
+
+double CTheStratExpert::FindTargetPrice(double stopLoss)
+{
+   
+   if(m_useTargetTimeframe == false)
+      return 0.0;
+   
+   
+   double price = m_symbol.Ask();
+   bool isLong = (price > stopLoss);
+   int shift = 1;
+   if(isLong)
+   {
+      double hight = 0.0;
+      double minTarget = price + MathAbs(price - stopLoss);
+      
+      do
+      {
+         hight = iHigh(m_symbol.Name(), m_targetTimeframe, shift++);
+         if(hight == 0.0)
+           return 0.0;
+            
+      }
+      while(hight <minTarget );
+      
+      return hight;
+   }
+   else
+   {
+      double low = 0.0;
+      double minTarget = price - MathAbs(stopLoss - price);
+      
+      do
+      {
+         low = iLow(m_symbol.Name(), m_targetTimeframe, shift++);
+         if(low == 0.0)
+           return 0.0;
+            
+      }
+      while(low > minTarget );
+      
+      return low;
+   }
+   
+   
+   return 0.0;
 }
