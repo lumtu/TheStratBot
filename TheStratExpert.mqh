@@ -36,6 +36,7 @@ protected:
     bool m_isBarBurned;
     double m_riskRatio;
     double m_rewardRatio;
+    int m_volumeAvgAmount;
     bool m_useReversal_22;
     bool m_useReversal_312;
     bool m_useReversal_3112;
@@ -53,6 +54,12 @@ protected:
     Candle m_c_htf1;
     Candle m_c_htf2;
     Candle m_c_htf3;
+public:
+   int m_startHour;
+   int m_startMin;
+   int m_endHour;
+   int m_endMin;
+
 
 public:
     CTheStratExpert(double lots,
@@ -87,7 +94,11 @@ public:
         m_riskRatio = riskRatio;
         m_rewardRatio = rewardRatio;
     }
-
+ 
+    void UseVolumeAVG(int volumeAvgAmount) {
+      m_volumeAvgAmount = volumeAvgAmount;
+    }
+ 
     void UseReversal_22(bool enable)  { m_useReversal_22 = enable; }
     void UseReversal_312(bool enable)  { m_useReversal_312 = enable; }
     void UseReversal_3112(bool enable)  { m_useReversal_3112 = enable; }
@@ -120,6 +131,9 @@ protected:
     bool IsNewBar();
     
     double FindTargetPrice(double stopLoss);
+    
+    bool IsVolumeToLow();
+    bool IsInTime();
 };
 
 CTheStratExpert::CTheStratExpert(double lots,
@@ -150,6 +164,11 @@ CTheStratExpert::CTheStratExpert(double lots,
     , m_isBarBurned(false)
     , m_riskRatio(1)
     , m_rewardRatio(1.7)
+    , m_volumeAvgAmount(0)
+   , m_startHour(0)
+   , m_startMin(0)
+   , m_endHour(0)
+   , m_endMin(0)
 
 {
 }
@@ -545,6 +564,8 @@ bool CTheStratExpert::ShortOpened(void)
 bool CTheStratExpert::BuyMarket(double stopLoss, string comment)
 {
     // printf("Sending buy order for %s", Symbol());
+    if(IsVolumeToLow() || !IsInTime())
+      return (false);
 
     bool res = false;
     double price = m_symbol.Ask();
@@ -579,7 +600,10 @@ bool CTheStratExpert::BuyMarket(double stopLoss, string comment)
 bool CTheStratExpert::SellMarket(double stopLoss, string comment)
 {
     // Print("Sending sell order for ", Symbol());
-
+    if(IsVolumeToLow() || !IsInTime())
+      return (false);
+      
+      
     bool res = false;
     double price = m_symbol.Bid();
     double lots = TradeSizeOptimized(stopLoss - price);
@@ -606,6 +630,8 @@ bool CTheStratExpert::SellMarket(double stopLoss, string comment)
     }
     return (res);
 }
+
+
 
 //+------------------------------------------------------------------+
 //| Calculate optimal lot size                                       |
@@ -742,4 +768,58 @@ double CTheStratExpert::FindTargetPrice(double stopLoss)
    
    
    return 0.0;
+}
+
+
+bool CTheStratExpert::IsVolumeToLow()
+{
+   if(m_volumeAvgAmount <= 0)
+      return false;
+      
+   int amount = MathMax(1, m_volumeAvgAmount);
+   long volumeAVG=0.0;
+   long volumesBuffer[];
+   ENUM_APPLIED_VOLUME inpVolumeType=VOLUME_TICK; // Volumes
+   if(CopyTickVolume(_Symbol, m_entryTimeframe, 0, amount, volumesBuffer)>0)
+   {
+      for(int i=0; i<amount; ++i)
+      {
+         volumeAVG += volumesBuffer[i];
+      }
+      volumeAVG = volumeAVG / amount;
+   }
+   
+   if(volumeAVG < volumesBuffer[0]) {
+      // zuwenig volumen
+      return true;
+   }
+   
+   return false;
+}
+
+
+bool CTheStratExpert::IsInTime()
+{
+   if(m_startHour == 0 && m_startMin == 0
+     && m_endHour == 0 && m_endMin == 0)
+     {
+      return true;
+     }
+
+
+   MqlDateTime timeLocal;
+   TimeCurrent(timeLocal);
+   
+
+   int curr = (timeLocal.hour * 1000) + (timeLocal.min);
+   int start = (m_startHour * 1000) + (m_startMin);
+   int end = (m_endHour * 1000) + (m_endMin);
+   
+   if( curr > start && curr < end)
+   {
+      return true;
+   }
+   
+
+   return false;
 }
