@@ -14,29 +14,30 @@ class CTheStratExpert
 {
 protected:
     double m_adjusted_point;  // point value adjusted for 3 or 5 points
-    double m_lots;            // Initial position size
     CTrade m_trade;           // trading object
     CSymbolInfo m_symbol;     // symbol info object
     CPositionInfo m_position; // trade position object
     CAccountInfo m_account;   // account info wrapper
+    
     bool m_useMoneyInsteadOfPercentage;
     bool m_useEquityInsteadOfBalance; // Eigenkapital statt Balance
     double m_fixedBalance;            // If greater than 0, position size calculator will use it instead of actual account balance.
     double m_moneyRisk;               // Risk tolerance in base currency
     double m_risk;                    // Risk tolerance in percentage points
     int m_lotFactor;
-    bool m_useFixLots; // Use fix lots
-    bool m_useTargets;
-    bool m_useExitTimeFrame;
-    bool m_useTargetTimeframe;
+
     ENUM_TIMEFRAMES m_exitTimeframe;
+
+    bool m_useExitTimeFrame;
     ENUM_TIMEFRAMES m_entryTimeframe;
+
+    bool m_useTargetTimeframe;
     ENUM_TIMEFRAMES m_targetTimeframe;
+    bool m_useTargets;
+
     datetime m_lastBar;
     bool m_isBarBurned;
-    double m_riskRatio;
-    double m_rewardRatio;
-    int m_volumeAvgAmount;
+
     bool m_useReversal_22;
     bool m_useReversal_312;
     bool m_useReversal_3112;
@@ -54,6 +55,9 @@ protected:
     Candle m_c_htf1;
     Candle m_c_htf2;
     Candle m_c_htf3;
+
+    int m_volumeAvgAmount;
+
 public:
    int m_startHour;
    int m_startMin;
@@ -62,8 +66,7 @@ public:
 
 
 public:
-    CTheStratExpert(double lots,
-                    ENUM_TIMEFRAMES exitTF,
+    CTheStratExpert(ENUM_TIMEFRAMES exitTF,
                     ENUM_TIMEFRAMES entryTF,
                     ENUM_TIMEFRAMES lowHigherTF,
                     ENUM_TIMEFRAMES midHigherTF,
@@ -73,10 +76,13 @@ public:
     void Deinit(void);
     bool Processing(void);
 
-    void UseFixLots(bool useFixLots)
-    {
-        m_useFixLots = useFixLots;
-    }
+    void SetUseMoneyInsteadOfPercentage(bool val) { m_useMoneyInsteadOfPercentage = val; }
+    void SetUseEquityInsteadOfBalance(bool val) { m_useEquityInsteadOfBalance = val; }
+    void SetFixedBalance(double fixedBalance) { m_fixedBalance = fixedBalance; }
+    void SetMoneyRisk(double moneyRisk) { m_moneyRisk = moneyRisk; }
+    void SetRisk(double risk) { m_risk = risk; }
+    void SetLotFactor(int lotFactor) { m_lotFactor = lotFactor; }
+
 
     void UseExitTimeFrame(bool useExitTimeFrame)
     {
@@ -88,13 +94,7 @@ public:
       m_useTargetTimeframe = useit;
       m_targetTimeframe = timeFrame;
     }
-    
-    void SetRR(double riskRatio, double rewardRatio)
-    {
-        m_riskRatio = riskRatio;
-        m_rewardRatio = rewardRatio;
-    }
- 
+
     void UseVolumeAVG(int volumeAvgAmount) {
       m_volumeAvgAmount = volumeAvgAmount;
     }
@@ -136,19 +136,17 @@ protected:
     bool IsInTime();
 };
 
-CTheStratExpert::CTheStratExpert(double lots,
-                                 ENUM_TIMEFRAMES exitTF,
+CTheStratExpert::CTheStratExpert(ENUM_TIMEFRAMES exitTF,
                                  ENUM_TIMEFRAMES entryTF,
                                  ENUM_TIMEFRAMES lowHigherTF,
                                  ENUM_TIMEFRAMES midHigherTF,
                                  ENUM_TIMEFRAMES bigHigherTF)
     : m_adjusted_point(0)
-    , m_lots(lots)
     , m_useMoneyInsteadOfPercentage(false)
     , m_useEquityInsteadOfBalance(true)
     , m_fixedBalance(0.0)
     , m_moneyRisk(0.0)
-    , m_risk(2.0)
+    , m_risk(1.0)
     , m_lotFactor(1)
     , m_c_cur_0(entryTF, 0)
     , m_c_cur_1(entryTF, 1)
@@ -162,8 +160,6 @@ CTheStratExpert::CTheStratExpert(double lots,
     , m_entryTimeframe(entryTF)
     , m_lastBar(0)
     , m_isBarBurned(false)
-    , m_riskRatio(1)
-    , m_rewardRatio(1.7)
     , m_volumeAvgAmount(0)
    , m_startHour(0)
    , m_startMin(0)
@@ -262,19 +258,6 @@ bool CTheStratExpert::InitCheckParameters()
 {
     //--- initial data checks
 
-    //--- check for right lots amount
-    if (m_lots < m_symbol.LotsMin() || m_lots > m_symbol.LotsMax())
-    {
-        printf("Lots amount must be in the range from %f to %f", m_symbol.LotsMin(), m_symbol.LotsMax());
-        return (false);
-    }
-
-    if (MathAbs(m_lots / m_symbol.LotsStep() - MathRound(m_lots / m_symbol.LotsStep())) > 1.0E-10)
-    {
-        printf("Lots amount is not corresponding with lot step %f", m_symbol.LotsStep());
-        return (false);
-    }
-
     //--- succeed
     return (true);
 }
@@ -303,21 +286,6 @@ bool CTheStratExpert::LongClosed(void)
         }
     }
 
-    double prof = m_position.Profit();
-    double comm = m_position.Commission();
-    double balance = 0.01 * m_account.Balance();
-
-    // m_rewardRatio 1.7 / 100
-    bool closeWithLost = false;
-    bool closeWithProfit = (m_position.Profit() - m_position.Commission()) > (m_rewardRatio / 100.0) * m_account.Balance();
-    // closeWithLost = (m_position.Profit() + m_position.Commission()) < ((m_riskRatio / 100.0) * m_account.Balance() * -1.0);
-
-    if (closeWithProfit || closeWithLost)
-    // if( (m_position.Profit() - m_position.Commission()) > 0.01 * m_account.Balance())
-    {
-        m_isBarBurned = true;
-        m_trade.PositionClose(m_position.Ticket());
-    }
 
     //--- result
     return (false);
@@ -337,20 +305,6 @@ bool CTheStratExpert::ShortClosed(void)
         return (false);
     }
 
-    double prof = m_position.Profit();
-    double comm = m_position.Commission();
-    double balance = 0.01 * m_account.Balance();
-
-    bool closeWithLost = false;
-    bool closeWithProfit = (m_position.Profit() - m_position.Commission()) > (m_rewardRatio / 100.0) * m_account.Balance();
-    
-    // closeWithLost = (m_position.Profit() + m_position.Commission()) < ((m_riskRatio / 100.0) * m_account.Balance() * -1.0);
-
-    if (closeWithProfit || closeWithLost)
-    {
-        m_isBarBurned = true;
-        m_trade.PositionClose(m_position.Ticket());
-    }
 
     //--- result
     return (false);
@@ -638,10 +592,6 @@ bool CTheStratExpert::SellMarket(double stopLoss, string comment)
 //+------------------------------------------------------------------+
 double CTheStratExpert::TradeSizeOptimized(double stopLoss)
 {
-
-    // Print("Stop Loss in points : ", stopLoss);
-    if (m_useFixLots)
-        return (m_lots);
 
     double Size, RiskMoney, PositionSize = 0;
 
