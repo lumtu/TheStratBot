@@ -47,6 +47,9 @@ public:
     bool LowerHigh();
     bool LowerLow();
     
+    bool IsShooterDown();
+    bool IsShooterUp();
+    
     string ToString();
 };
 
@@ -135,4 +138,65 @@ string Candle::ToString()
         , m_plow  
         , m_close  
         , m_pclose);
+}
+
+bool Candle::IsShooterDown()
+{
+    //  |
+    //  |
+    //  |
+    //  |
+    // +-+ h2
+    // | |
+    // +-+ l2
+    //  |
+     double h2 = MathMax(m_open, m_close);
+     double l2 = MathMin(m_open, m_close);
+     
+     double hdiff = m_high - h2;
+     double ldiff = l2 - m_low;
+     double diff = MathAbs(m_open- m_close);
+
+     // Docht min. 2mal grösser als Body     
+     if ( ( hdiff / 2.0 ) <= diff)
+     {  return false; // Nein
+     }
+     
+     // Docht min 2mal grösser als lunte 
+     if ( ( hdiff / 2.0 ) <= ldiff)
+     {  return false; // nein
+     }
+     
+     return true;
+}
+
+bool Candle::IsShooterUp()
+{
+    //  |
+    // +-+ h2
+    // | |
+    // +-+ l2
+    //  |
+    //  |
+    //  |
+    //  |
+
+     double h2 = MathMax(m_open, m_close);
+     double l2 = MathMin(m_open, m_close);
+     
+     double hdiff = m_high - h2;
+     double ldiff = l2 - m_low;
+     double diff = MathAbs(m_open- m_close);
+
+     // Docht min. 2mal grösser als Body     
+     if ( ( ldiff / 2.0 ) <= diff)
+     {  return false; // Nein
+     }
+     
+     // Docht min 2mal grösser als lunte 
+     if ( ( ldiff / 2.0 ) <= hdiff)
+     {  return false; // nein
+     }
+     
+     return true;
 }

@@ -17,6 +17,13 @@ enum EnTrailingStop
    Use_Bar2Bar,
 };
 
+enum EnTakeProfitType
+{
+    None = 0,
+    TargetTF = 1,
+    Reward2 = 2,
+    Reward3 = 3
+};
 
 class CTheStratExpert
 {
@@ -39,10 +46,10 @@ protected:
 
     ENUM_TIMEFRAMES m_exitTimeframe;
 
-    bool m_useExitTimeFrame;
+    bool m_useTheStratExit;
     ENUM_TIMEFRAMES m_entryTimeframe;
 
-    bool m_useTargetTimeframe;
+    EnTakeProfitType m_takeProfitType;
     ENUM_TIMEFRAMES m_targetTimeframe;
     bool m_useTargets;
 
@@ -95,14 +102,14 @@ public:
     void SetLotFactor(int lotFactor) { m_lotFactor = lotFactor; }
 
     void SetTrailingStop(EnTrailingStop trailingStop) {m_trailingStop = trailingStop;}
-    void UseExitTimeFrame(bool useExitTimeFrame)
+    void UseTheStratExit(bool useTheStratExit)
     {
-        m_useExitTimeFrame = useExitTimeFrame;
+        m_useTheStratExit = useTheStratExit;
     }
     
-    void UseTargetTimeframe(bool useit, ENUM_TIMEFRAMES timeFrame)  
+    void UseTargetTimeframe(EnTakeProfitType takeProfitType, ENUM_TIMEFRAMES timeFrame)  
     {
-      m_useTargetTimeframe = useit;
+      m_takeProfitType = takeProfitType;
       m_targetTimeframe = timeFrame;
     }
 
@@ -170,7 +177,7 @@ CTheStratExpert::CTheStratExpert(ENUM_TIMEFRAMES exitTF,
     , m_c_htf1(lowHigherTF, 0)
     , m_c_htf2(midHigherTF, 0)
     , m_c_htf3(bigHigherTF, 0)
-    , m_useExitTimeFrame(false)
+    , m_useTheStratExit(false)
     , m_exitTimeframe(exitTF)
     , m_entryTimeframe(entryTF)
     , m_lastBar(0)
@@ -302,7 +309,7 @@ bool CTheStratExpert::LongClosed(void)
     //--- should it be closed?
     m_position.Select(_Symbol);
 
-    if (m_useExitTimeFrame)
+    if (m_useTheStratExit)
     {
         Candle c_exit0(m_exitTimeframe, 0);
         c_exit0.RefreshRates();
@@ -322,7 +329,7 @@ bool CTheStratExpert::LongClosed(void)
 bool CTheStratExpert::ShortClosed(void)
 {
     //--- should it be closed?
-    if (m_useExitTimeFrame)
+    if (m_useTheStratExit)
     {
         Candle c_exit0(m_exitTimeframe, 0);
         if (c_exit0.TwoUp() || c_exit0.Three())
@@ -409,7 +416,7 @@ bool CTheStratExpert::LongOpened(void)
     {
 
         if (m_c_cur_0.TwoUp() && m_c_cur_0.IsGreen() &&
-            m_c_cur_1.TwoDown() && m_c_cur_1.IsRed())
+            m_c_cur_1.TwoDown() && ( m_c_cur_1.IsRed() || m_c_cur_1.IsShooterUp() ) )
         {
             if (m_useReversal_22)
                 result = BuyMarket(longStopLoss, "2-2 Bullish Reversal");
@@ -492,7 +499,7 @@ bool CTheStratExpert::ShortOpened(void)
     {
 
         if (m_c_cur_0.TwoDown() && m_c_cur_0.IsRed() &&
-            m_c_cur_1.TwoUp() && m_c_cur_1.IsGreen())
+            m_c_cur_1.TwoUp() && (m_c_cur_1.IsGreen() || m_c_cur_1.IsShooterDown() ) )
         {
             if(m_useReversal_22)
                 result = SellMarket(shortStopLoss, "2-2 Bearish Reversal");
@@ -726,45 +733,55 @@ bool CTheStratExpert::IsNewBar()
 
 double CTheStratExpert::FindTargetPrice(double stopLoss)
 {
-   
-   if(m_useTargetTimeframe == false)
-      return 0.0;
-   
-   
    double price = m_symbol.Ask();
    bool isLong = (price > stopLoss);
-   int shift = 1;
-   if(isLong)
+   
+   if(m_takeProfitType == EnTakeProfitType::Reward2 ||
+      m_takeProfitType == EnTakeProfitType::Reward3 )
    {
-      double hight = 0.0;
-      double minTarget = price + MathAbs(price - stopLoss);
-      
-      do
-      {
-         hight = iHigh(m_symbol.Name(), m_targetTimeframe, shift++);
-         if(hight == 0.0)
-           return 0.0;
-            
-      }
-      while(hight <minTarget );
-      
-      return hight;
+      double diff = MathAbs( (price - stopLoss)*((int)m_takeProfitType));
+      if(isLong)   
+         return price + diff;
+      else
+         return price - diff;
    }
-   else
+   
+   else if(m_takeProfitType == EnTakeProfitType::TargetTF)
    {
-      double low = 0.0;
-      double minTarget = price - MathAbs(stopLoss - price);
-      
-      do
-      {
-         low = iLow(m_symbol.Name(), m_targetTimeframe, shift++);
-         if(low == 0.0)
-           return 0.0;
-            
-      }
-      while(low > minTarget );
-      
-      return low;
+       int shift = 1;
+       if(isLong)
+       {
+          
+          double hight = 0.0;
+          double minTarget = price + MathAbs(price - stopLoss);
+          
+          do
+          {
+             hight = iHigh(m_symbol.Name(), m_targetTimeframe, shift++);
+             if(hight == 0.0)
+               return 0.0;
+                
+          }
+          while(hight <minTarget );
+          
+          return hight;
+       }
+       else
+       {
+          double low = 0.0;
+          double minTarget = price - MathAbs(stopLoss - price);
+          
+          do
+          {
+             low = iLow(m_symbol.Name(), m_targetTimeframe, shift++);
+             if(low == 0.0)
+               return 0.0;
+                
+          }
+          while(low > minTarget );
+          
+          return low;
+       }
    }
    
    
