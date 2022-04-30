@@ -10,6 +10,14 @@
 
 #include "Candle.mqh"
 
+enum EnTrailingStop
+{
+   Use_None,
+   Use_PSAR,
+   Use_Bar2Bar,
+};
+
+
 class CTheStratExpert
 {
 protected:
@@ -18,6 +26,9 @@ protected:
     CSymbolInfo m_symbol;     // symbol info object
     CPositionInfo m_position; // trade position object
     CAccountInfo m_account;   // account info wrapper
+    
+    CiSAR m_sar;            // object-indicator
+    EnTrailingStop m_trailingStop;
     
     bool m_useMoneyInsteadOfPercentage;
     bool m_useEquityInsteadOfBalance; // Eigenkapital statt Balance
@@ -83,7 +94,7 @@ public:
     void SetRisk(double risk) { m_risk = risk; }
     void SetLotFactor(int lotFactor) { m_lotFactor = lotFactor; }
 
-
+    void SetTrailingStop(EnTrailingStop trailingStop) {m_trailingStop = trailingStop;}
     void UseExitTimeFrame(bool useExitTimeFrame)
     {
         m_useExitTimeFrame = useExitTimeFrame;
@@ -134,6 +145,10 @@ protected:
     
     bool IsVolumeToLow();
     bool IsInTime();
+    
+    bool CheckTrailingStopLong(CPositionInfo *position,double &sl);
+    bool CheckTrailingStopShort(CPositionInfo *position,double &sl);
+
 };
 
 CTheStratExpert::CTheStratExpert(ENUM_TIMEFRAMES exitTF,
@@ -181,6 +196,9 @@ bool CTheStratExpert::Init(void)
     if (!InitCheckParameters())
         return (false);
 
+    if(!InitIndicators())
+      return false;
+
     return true;
 }
 
@@ -208,6 +226,9 @@ bool CTheStratExpert::Processing(void)
         return (false);
     if (!m_c_htf3.RefreshRates())
         return (false);
+
+
+     m_sar.Refresh();
 
     if (IsNewBar())
     {
@@ -264,8 +285,15 @@ bool CTheStratExpert::InitCheckParameters()
 
 bool CTheStratExpert::InitIndicators(void)
 {
-    bool result = false;
-    return result;
+   double m_psarStep = 0.02;
+   double m_psarMaximum = 0.2;
+     if(!m_sar.Create(m_symbol.Name(),m_entryTimeframe, m_psarStep, m_psarMaximum))
+     {
+        printf(__FUNCTION__+": error initializing object");
+      return(false);
+     }
+
+    return true;
 }
 
 bool CTheStratExpert::LongClosed(void)
@@ -314,17 +342,28 @@ bool CTheStratExpert::LongModified(void)
 {
     bool result = false;
     //--- check for trailing stop
-
-    double newStopLoss = m_c_cur_1.GetLow();
-    ; //  - CalculateNormalizedDigits() - m_symbol.Spread();
-    
-    if (m_position.StopLoss() != newStopLoss)
+    if(m_trailingStop == EnTrailingStop::Use_PSAR)
     {
-        // result = true;
-        double tp = m_position.TakeProfit();
-        m_trade.PositionModify(m_position.Ticket(), newStopLoss, tp);
+       double new_sl=0.0;
+       if( CheckTrailingStopLong(&m_position, new_sl) )
+       {
+           double tp = m_position.TakeProfit();
+           m_trade.PositionModify(m_position.Ticket(), new_sl, tp);
+       }
     }
-
+    else if(m_trailingStop == EnTrailingStop::Use_Bar2Bar)
+    {
+   
+       double newStopLoss = m_c_cur_1.GetLow();
+       ; //  - CalculateNormalizedDigits() - m_symbol.Spread();
+       
+       if (m_position.StopLoss() != newStopLoss)
+       {
+           // result = true;
+           double tp = m_position.TakeProfit();
+           m_trade.PositionModify(m_position.Ticket(), newStopLoss, tp);
+       }
+    }
     //--- result
     return result;
 }
@@ -332,16 +371,28 @@ bool CTheStratExpert::LongModified(void)
 bool CTheStratExpert::ShortModified(void)
 {
     bool result = false;
-    //--- check for trailing stop
-    double shortStopLoss = m_c_cur_1.GetHigh(); //  + CalculateNormalizedDigits() + m_symbol.Spread();
 
-    if (m_position.StopLoss() != shortStopLoss)
+    if(m_trailingStop == EnTrailingStop::Use_PSAR)
     {
-        // result = true;
-        double tp = m_position.TakeProfit();
-        m_trade.PositionModify(m_position.Ticket(), shortStopLoss, tp);
+       double new_sl=0.0;
+       if( CheckTrailingStopShort(&m_position, new_sl) )
+       {
+           double tp = m_position.TakeProfit();
+           m_trade.PositionModify(m_position.Ticket(), new_sl, tp);
+       }
     }
-
+    else
+    {
+       //--- check for trailing stop
+       double shortStopLoss = m_c_cur_1.GetHigh(); //  + CalculateNormalizedDigits() + m_symbol.Spread();
+   
+       if (m_position.StopLoss() != shortStopLoss)
+       {
+           // result = true;
+           double tp = m_position.TakeProfit();
+           m_trade.PositionModify(m_position.Ticket(), shortStopLoss, tp);
+       }
+   }
     //--- result
     return result;
 }
@@ -773,3 +824,59 @@ bool CTheStratExpert::IsInTime()
 
    return false;
 }
+
+
+
+//+------------------------------------------------------------------+
+//| Checking trailing stop and/or profit for long position.          |
+//+------------------------------------------------------------------+
+bool CTheStratExpert::CheckTrailingStopLong(CPositionInfo *position,double &sl)
+  {
+  // PSAR
+//--- check
+   if(position==NULL)
+      return(false);
+      
+     
+//---
+   double level =NormalizeDouble(m_symbol.Bid()-m_symbol.StopsLevel()*m_symbol.Point(),m_symbol.Digits());
+   double new_sl=NormalizeDouble(m_sar.Main(1),m_symbol.Digits());
+   double pos_sl=position.StopLoss();
+   double base  =(pos_sl==0.0) ? position.PriceOpen() : pos_sl;
+//---
+   sl=EMPTY_VALUE;
+   
+   if(new_sl>base && new_sl<level)
+      sl=new_sl;
+//---
+   return(sl!=EMPTY_VALUE);
+  }
+//+------------------------------------------------------------------+
+//| Checking trailing stop and/or profit for short position.         |
+//+------------------------------------------------------------------+
+bool CTheStratExpert::CheckTrailingStopShort(CPositionInfo *position,double &sl)
+  {
+  /// PSAR
+  
+  
+//--- check
+   if(position==NULL)
+      return(false);
+      
+//---
+   double sarMain = m_sar.Main(1);
+   double spread= m_symbol.Spread();
+   double point = m_symbol.Point();
+   int digits = m_symbol.Digits();
+   double level =NormalizeDouble(m_symbol.Ask()+m_symbol.StopsLevel()*m_symbol.Point(),m_symbol.Digits());
+   double new_sl=NormalizeDouble(sarMain + spread * point, digits);
+   double pos_sl=position.StopLoss();
+   double base  =(pos_sl==0.0) ? position.PriceOpen() : pos_sl;
+//---
+   sl=EMPTY_VALUE;
+   
+   if(new_sl<base && new_sl>level)
+      sl=new_sl;
+//---
+   return(sl!=EMPTY_VALUE);
+  }
