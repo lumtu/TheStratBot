@@ -155,6 +155,8 @@ protected:
     
     bool CheckTrailingStopLong(CPositionInfo *position,double &sl);
     bool CheckTrailingStopShort(CPositionInfo *position,double &sl);
+    
+    double Round(double price);
 
 };
 
@@ -741,9 +743,9 @@ double CTheStratExpert::FindTargetPrice(double stopLoss)
    {
       double diff = MathAbs( (price - stopLoss)*((int)m_takeProfitType));
       if(isLong)   
-         return price + diff;
+         return NormalizeDouble(price + diff, m_symbol.Digits());
       else
-         return price - diff;
+         return NormalizeDouble(price - diff, m_symbol.Digits());;
    }
    
    else if(m_takeProfitType == EnTakeProfitType::TargetTF)
@@ -856,8 +858,11 @@ bool CTheStratExpert::CheckTrailingStopLong(CPositionInfo *position,double &sl)
       
      
 //---
+    double unitCost = m_symbol.TickValue();
+    double tickSize = m_symbol.TickSize();
+
    double level =NormalizeDouble(m_symbol.Bid()-m_symbol.StopsLevel()*m_symbol.Point(),m_symbol.Digits());
-   double new_sl=NormalizeDouble(m_sar.Main(1),m_symbol.Digits());
+   double new_sl=Round( m_sar.Main(0) );
    double pos_sl=position.StopLoss();
    double base  =(pos_sl==0.0) ? position.PriceOpen() : pos_sl;
 //---
@@ -881,12 +886,16 @@ bool CTheStratExpert::CheckTrailingStopShort(CPositionInfo *position,double &sl)
       return(false);
       
 //---
-   double sarMain = m_sar.Main(1);
+  // NormalizeDouble(RiskMoney / (stopLoss * UnitCost / TickSize), m_symbol.Digits());
+    double unitCost = m_symbol.TickValue();
+    double tickSize = m_symbol.TickSize();
+   double sarMain = m_sar.Main(0);
    double spread= m_symbol.Spread();
    double point = m_symbol.Point();
    int digits = m_symbol.Digits();
+   
    double level =NormalizeDouble(m_symbol.Ask()+m_symbol.StopsLevel()*m_symbol.Point(),m_symbol.Digits());
-   double new_sl=NormalizeDouble(sarMain + spread * point, digits);
+   double new_sl= Round( (sarMain + spread * point) );
    double pos_sl=position.StopLoss();
    double base  =(pos_sl==0.0) ? position.PriceOpen() : pos_sl;
 //---
@@ -897,3 +906,12 @@ bool CTheStratExpert::CheckTrailingStopShort(CPositionInfo *position,double &sl)
 //---
    return(sl!=EMPTY_VALUE);
   }
+  
+  
+double CTheStratExpert::Round(double price)
+{
+    double tick_size = m_symbol.TickSize();
+
+   return( round( price / tick_size ) * tick_size );    
+   
+}
