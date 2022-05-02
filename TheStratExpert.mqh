@@ -912,6 +912,6 @@ double CTheStratExpert::Round(double price)
 {
     double tick_size = m_symbol.TickSize();
 
-   return( round( price / tick_size ) * tick_size );    
+   return NormalizeDouble( round( price / tick_size ) * tick_size, m_symbol.Digits() );    
    
 }
