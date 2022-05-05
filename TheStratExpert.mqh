@@ -311,7 +311,6 @@ bool CTheStratExpert::InitIndicators(void)
 
 bool CTheStratExpert::LongClosed(void)
 {
-    bool result = false;
     //--- should it be closed?
     m_position.Select(_Symbol);
 
@@ -334,6 +333,8 @@ bool CTheStratExpert::LongClosed(void)
 bool CTheStratExpert::ShortClosed(void)
 {
     //--- should it be closed?
+    m_position.Select(_Symbol);
+
     if (m_useTheStratExit)
     {
         Candle c_exit0(m_exitTimeframe, 0);
@@ -369,6 +370,9 @@ bool CTheStratExpert::LongModified(void)
     }
     else if(m_trailingStop == EnTrailingStop::Use_Bar2Bar)
     {
+       if(m_c_cur_1.One())
+       { return result; }
+         
        double newStopLoss = m_c_cur_1.GetLow();
           
        if (m_position.StopLoss() < newStopLoss)
@@ -401,6 +405,9 @@ bool CTheStratExpert::ShortModified(void)
     }
     else
     {
+       if(m_c_cur_1.One())
+       { return result; }
+    
        //--- check for trailing stop
        double shortStopLoss = m_c_cur_1.GetHigh(); //  + CalculateNormalizedDigits() + m_symbol.Spread();
    
@@ -590,8 +597,19 @@ bool CTheStratExpert::BuyMarket(double stopLoss, string comment)
     if(IsVolumeToLow() || !IsInTime())
       return (false);
 
-    bool res = false;
+
     double price = m_symbol.Ask();
+    
+    //  Ist der Preis zu weit vom letztem Tief entfernt?
+    double range = m_symbol.TickSize();
+    double lastHigh = m_c_cur_1.GetHigh();
+    if(price > (lastHigh +(range*5) ))
+    {
+       //m_isBarBurned = true;
+       return (false);
+    }
+
+    
     double lots = TradeSizeOptimized(price - stopLoss);
     double takeProfit = FindTargetPrice(stopLoss);
     
@@ -615,7 +633,7 @@ bool CTheStratExpert::BuyMarket(double stopLoss, string comment)
         }
     }
 
-    return (res);
+    return (false);
 }
 
 //+------------------------------------------------------------------+
@@ -627,11 +645,19 @@ bool CTheStratExpert::SellMarket(double stopLoss, string comment)
     if(IsVolumeToLow() || !IsInTime())
       return (false);
       
-      
-    bool res = false;
     double price = m_symbol.Bid();
+    
+    //  Ist der Preis zu weit vom letztem Tief entfernt?
+    double range = m_symbol.TickSize();
+    double lastLow = m_c_cur_1.GetLow();
+    if(price < (lastLow -(range*5) ))
+    {
+       // m_isBarBurned = true;
+       return (false);
+    }
+    
+    
     double lots = TradeSizeOptimized(stopLoss - price);
-
     double takeProfit = FindTargetPrice(stopLoss);
 
     //--- check for free money
@@ -653,7 +679,8 @@ bool CTheStratExpert::SellMarket(double stopLoss, string comment)
             printf("Open parameters : price=%f,SL=%f", price, stopLoss);
         }
     }
-    return (res);
+    
+    return (false);
 }
 
 
