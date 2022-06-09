@@ -364,7 +364,7 @@ bool CTheStratExpert::LongModified(void)
            if(old_sl < new_sl)
            {
                double tp = m_position.TakeProfit();
-               m_trade.PositionModify(m_position.Ticket(), new_sl, tp);
+               m_trade.PositionModify(m_position.Ticket(), Round(new_sl), Round(tp));
            }
        }
     }
@@ -373,13 +373,13 @@ bool CTheStratExpert::LongModified(void)
        if(m_c_cur_1.One())
        { return result; }
          
-       double newStopLoss = m_c_cur_1.GetLow();
+       double newStopLoss = Round( m_c_cur_1.GetLow() );
           
        if (m_position.StopLoss() < newStopLoss)
        {
            // result = true;
            double tp = m_position.TakeProfit();
-           m_trade.PositionModify(m_position.Ticket(), newStopLoss, tp);
+           m_trade.PositionModify(m_position.Ticket(), Round(newStopLoss), Round(tp));
        }
     }
     //--- result
@@ -399,7 +399,7 @@ bool CTheStratExpert::ShortModified(void)
            if( old_sl > new_sl)
            {
               double tp = m_position.TakeProfit();
-              m_trade.PositionModify(m_position.Ticket(), new_sl, tp);
+              m_trade.PositionModify(m_position.Ticket(), Round(new_sl), Round(tp));
            }
        }
     }
@@ -409,13 +409,13 @@ bool CTheStratExpert::ShortModified(void)
        { return result; }
     
        //--- check for trailing stop
-       double shortStopLoss = m_c_cur_1.GetHigh(); //  + CalculateNormalizedDigits() + m_symbol.Spread();
+       double shortStopLoss = Round( m_c_cur_1.GetHigh() ); //  + CalculateNormalizedDigits() + m_symbol.Spread();
    
        if (m_position.StopLoss() != shortStopLoss)
        {
            // result = true;
            double tp = m_position.TakeProfit();
-           m_trade.PositionModify(m_position.Ticket(), shortStopLoss, tp);
+           m_trade.PositionModify(m_position.Ticket(), Round(shortStopLoss), Round(tp));
        }
    }
     //--- result
@@ -425,7 +425,7 @@ bool CTheStratExpert::ShortModified(void)
 bool CTheStratExpert::LongOpened(void)
 {
     bool result = false;
-    double longStopLoss = m_c_cur_1.GetLow(); //  - CalculateNormalizedDigits() - m_symbol.Spread();
+    double longStopLoss = Round(m_c_cur_1.GetLow()); //  - CalculateNormalizedDigits() - m_symbol.Spread();
 
     //--- check for long position (BUY) possibility
     if ((m_c_htf1.TwoUp() || m_c_htf1.Three()) && m_c_htf1.IsGreen() &&
@@ -507,7 +507,7 @@ bool CTheStratExpert::LongOpened(void)
 
 bool CTheStratExpert::ShortOpened(void)
 {
-    double shortStopLoss = m_c_cur_1.GetHigh(); // + CalculateNormalizedDigits() + m_symbol.Spread();
+    double shortStopLoss = Round( m_c_cur_1.GetHigh() ); // + CalculateNormalizedDigits() + m_symbol.Spread();
 
     bool result = false;
     //--- check for short position (SELL) possibility
@@ -621,7 +621,7 @@ bool CTheStratExpert::BuyMarket(double stopLoss, string comment)
     else
     {
         //--- open position
-        if (m_trade.PositionOpen(_Symbol, ORDER_TYPE_BUY, lots, price, stopLoss, takeProfit, comment))
+        if (m_trade.PositionOpen(_Symbol, ORDER_TYPE_BUY, lots, Round(price), Round(stopLoss), Round(takeProfit), comment))
         {
             m_isBarBurned = true;
             printf("Position by %s to be opened", Symbol());
@@ -661,14 +661,14 @@ bool CTheStratExpert::SellMarket(double stopLoss, string comment)
     double takeProfit = FindTargetPrice(stopLoss);
 
     //--- check for free money
-    if (m_account.FreeMarginCheck(_Symbol, ORDER_TYPE_SELL, lots, price) < 0.0)
+    if (m_account.FreeMarginCheck(_Symbol, ORDER_TYPE_SELL, lots, Round(price)) < 0.0)
     {
         printf("We have no money. Free Margin = %f", m_account.FreeMargin());
     }
     else
     {
         //--- open position
-        if (m_trade.PositionOpen(_Symbol, ORDER_TYPE_SELL, lots, price, stopLoss, takeProfit, comment))
+        if (m_trade.PositionOpen(_Symbol, ORDER_TYPE_SELL, lots, Round(price), Round(stopLoss), Round(takeProfit), comment))
         {
             m_isBarBurned = true;
             printf("Position by %s to be opened", Symbol());
@@ -783,9 +783,9 @@ double CTheStratExpert::FindTargetPrice(double stopLoss)
    {
       double diff = MathAbs( (price - stopLoss)*((int)m_takeProfitType));
       if(isLong)   
-         return NormalizeDouble(price + diff, m_symbol.Digits());
+         return Round( NormalizeDouble(price + diff, m_symbol.Digits()) );
       else
-         return NormalizeDouble(price - diff, m_symbol.Digits());;
+         return Round( NormalizeDouble(price - diff, m_symbol.Digits()) );
    }
    
    else if(m_takeProfitType == EnTakeProfitType::TargetTF || 
@@ -814,7 +814,7 @@ double CTheStratExpert::FindTargetPrice(double stopLoss)
           }
           while(hight <minTarget );
           
-          return hight;
+          return Round( hight );
        }
        else
        {
@@ -834,7 +834,7 @@ double CTheStratExpert::FindTargetPrice(double stopLoss)
           }
           while(low > minTarget );
           
-          return low;
+          return Round( low );
        }
    }
    
