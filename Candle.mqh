@@ -31,7 +31,9 @@ public:
     Candle(ENUM_TIMEFRAMES period, int index);
     
     bool RefreshRates();
-
+    int BarIndex() const {return m_index;}
+    ENUM_TIMEFRAMES Period() const { return m_period;}
+    
     double GetHigh();
     double GetLow();
     double IsGreen();

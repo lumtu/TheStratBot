@@ -27,6 +27,7 @@ enum EnTakeProfitType
     Reward5 = 5,
     TargetTF = 10,
     TargetTF_R1 = 11,
+    Fibonacci = 20,
 };
 
 class CTheStratExpert
@@ -37,6 +38,7 @@ protected:
     CSymbolInfo m_symbol;     // symbol info object
     CPositionInfo m_position; // trade position object
     CAccountInfo m_account;   // account info wrapper
+    ENUM_ACCOUNT_MARGIN_MODE m_margin_mode;
     
     CiSAR m_sar;            // object-indicator
     EnTrailingStop m_trailingStop;
@@ -80,6 +82,10 @@ protected:
 
     int m_volumeAvgAmount;
 
+    double m_fibonacciLevels[]; // Fibonacci levels
+    int m_partialProfitCounter;
+    int m_openPositionIndex;
+    
 public:
    int m_startHour;
    int m_startMin;
@@ -98,6 +104,10 @@ public:
     void Deinit(void);
     bool Processing(void);
 
+    void SetMarginMode(void) { m_margin_mode=(ENUM_ACCOUNT_MARGIN_MODE)AccountInfoInteger(ACCOUNT_MARGIN_MODE); }
+    bool IsHedging(void) const { return(m_margin_mode==ACCOUNT_MARGIN_MODE_RETAIL_HEDGING); }
+
+    
     void SetUseMoneyInsteadOfPercentage(bool val) { m_useMoneyInsteadOfPercentage = val; }
     void SetUseEquityInsteadOfBalance(bool val) { m_useEquityInsteadOfBalance = val; }
     void SetFixedBalance(double fixedBalance) { m_fixedBalance = fixedBalance; }
@@ -193,8 +203,16 @@ CTheStratExpert::CTheStratExpert(ENUM_TIMEFRAMES exitTF,
    , m_startMin(0)
    , m_endHour(0)
    , m_endMin(0)
-
+   , m_partialProfitCounter(0)
 {
+    SetMarginMode();
+    ArrayResize(m_fibonacciLevels, 6);
+    m_fibonacciLevels[0] = 23.6;
+    m_fibonacciLevels[1] = 38.2;
+    m_fibonacciLevels[2] = 50.0;
+    m_fibonacciLevels[3] = 61.8;
+    m_fibonacciLevels[4] = 78.6;
+    m_fibonacciLevels[5] =100.0;
 }
 
 CTheStratExpert::~CTheStratExpert(void)
@@ -212,6 +230,7 @@ bool CTheStratExpert::Init(void)
     if(!InitIndicators())
       return false;
 
+    
     return true;
 }
 
@@ -313,7 +332,7 @@ bool CTheStratExpert::LongClosed(void)
 {
     //--- should it be closed?
     m_position.Select(_Symbol);
-
+    
     if (m_useTheStratExit)
     {
         Candle c_exit0(m_exitTimeframe, 0);
@@ -322,9 +341,56 @@ bool CTheStratExpert::LongClosed(void)
         if (c_exit0.TwoDown() || c_exit0.Three())
         {
             m_trade.PositionClose(m_position.Ticket());
+            return (false);
         }
     }
 
+    if(m_takeProfitType == EnTakeProfitType::Fibonacci) 
+    {
+        int size = ArraySize(m_fibonacciLevels);
+        if(size>m_partialProfitCounter) 
+        {
+            double nextFiboLevel = m_fibonacciLevels[m_partialProfitCounter];
+            
+            Candle c(m_c_cur_0.Period(), m_openPositionIndex);
+            double high = c.GetHigh();
+            double low = c.GetLow();            
+            
+            double diff = high - low;
+            double fiboPriceOffset = diff * (nextFiboLevel/100.0);
+            double openPrice = m_position.PriceOpen();
+            double price = m_position.PriceCurrent();
+            
+            if(price>= openPrice+fiboPriceOffset) {
+                
+                double minLotes = m_symbol.LotsMin();
+                double PositionSize = (m_position.Volume() / 4.0)*2.0;
+                if(PositionSize < minLotes) {
+                    PositionSize = m_position.Volume() / 2.0;
+                }
+                
+                if(PositionSize < minLotes) {
+                    PositionSize = m_position.Volume();
+                }
+                
+                double LotStep = m_symbol.LotsStep();
+                PositionSize = PositionSize - MathMod(PositionSize, LotStep);
+                printf("Position Size: %.3f", PositionSize);
+                
+                if(IsHedging()) {
+                    if(m_trade.PositionClosePartial(m_position.Ticket(), PositionSize))
+                    {
+                        m_partialProfitCounter++;
+                    }
+                } else {
+                    if(m_trade.Sell(PositionSize, _Symbol, 0.0, 0.0, 0.0, StringFormat("Partial profit: %d", m_partialProfitCounter)))
+                    {
+                        m_partialProfitCounter++;
+                    }
+                }
+            }
+        }
+    }
 
     //--- result
     return (false);
@@ -341,8 +407,55 @@ bool CTheStratExpert::ShortClosed(void)
         if (c_exit0.TwoUp() || c_exit0.Three())
         {
             m_trade.PositionClose(m_position.Ticket());
+            return (false);
         }
-        return (false);
+    }
+
+    if(m_takeProfitType == EnTakeProfitType::Fibonacci) 
+    {
+        int size = ArraySize(m_fibonacciLevels);
+        if(size>m_partialProfitCounter) 
+        {
+            double nextFiboLevel = m_fibonacciLevels[m_partialProfitCounter];
+            
+            Candle c(m_c_cur_0.Period(), m_openPositionIndex);
+            double high = c.GetHigh();
+            double low = c.GetLow();            
+            
+            double diff = high - low;
+            double fiboPriceOffset = diff * (nextFiboLevel/100.0);
+            double openPrice = m_position.PriceOpen();
+            double price = m_position.PriceCurrent();
+            
+            if(price <= openPrice-fiboPriceOffset) {
+                
+                double minLotes = m_symbol.LotsMin();
+                double PositionSize = (m_position.Volume() / 4.0)*2.0;
+                if(PositionSize < minLotes) {
+                    PositionSize = m_position.Volume() / 2.0;
+                }
+                
+                if(PositionSize < minLotes) {
+                    PositionSize = m_position.Volume();
+                }
+                
+                double LotStep = m_symbol.LotsStep();
+                PositionSize = PositionSize - MathMod(PositionSize, LotStep);
+                printf("Position Size: %.3f", PositionSize);
+                
+                if(IsHedging()) {
+                    if(m_trade.PositionClosePartial(m_position.Ticket(), PositionSize))
+                    {
+                        m_partialProfitCounter++;
+                    }
+                } else {
+                    if(m_trade.Buy(PositionSize, _Symbol, 0.0, 0.0, 0.0, StringFormat("Partial profit: %d", m_partialProfitCounter)))
+                    {
+                        m_partialProfitCounter++;
+                    }
+                }
+            }
+        }
     }
 
 
@@ -597,7 +710,7 @@ bool CTheStratExpert::BuyMarket(double stopLoss, string comment)
     if(IsVolumeToLow() || !IsInTime())
       return (false);
 
-
+   
     double price = m_symbol.Ask();
     
     //  Ist der Preis zu weit vom letztem Tief entfernt?
@@ -624,6 +737,9 @@ bool CTheStratExpert::BuyMarket(double stopLoss, string comment)
         if (m_trade.PositionOpen(_Symbol, ORDER_TYPE_BUY, lots, Round(price), Round(stopLoss), Round(takeProfit), comment))
         {
             m_isBarBurned = true;
+            m_partialProfitCounter=0;
+            m_openPositionIndex = m_c_cur_1.BarIndex();
+
             printf("Position by %s to be opened", Symbol());
         }
         else
@@ -671,6 +787,8 @@ bool CTheStratExpert::SellMarket(double stopLoss, string comment)
         if (m_trade.PositionOpen(_Symbol, ORDER_TYPE_SELL, lots, Round(price), Round(stopLoss), Round(takeProfit), comment))
         {
             m_isBarBurned = true;
+            m_partialProfitCounter=0;
+            m_openPositionIndex = m_c_cur_1.BarIndex();
             printf("Position by %s to be opened", Symbol());
         }
         else
