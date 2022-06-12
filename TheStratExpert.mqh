@@ -85,7 +85,7 @@ protected:
     double m_fibonacciLevels[]; // Fibonacci levels
     int m_partialProfitCounter;
     int m_openPositionIndex;
-    
+    double m_openPositionVolumne;
 public:
    int m_startHour;
    int m_startMin;
@@ -142,6 +142,12 @@ public:
     void UseContinuation_222(bool enable)  { m_useContinuation_222 = enable; }
 
 
+    void SetPartialFibo(double val) 
+    {   
+        int size = ArraySize(m_fibonacciLevels);
+        ArrayResize(m_fibonacciLevels, size+1);
+        m_fibonacciLevels[size] = val;
+    }
 
 
 
@@ -206,13 +212,7 @@ CTheStratExpert::CTheStratExpert(ENUM_TIMEFRAMES exitTF,
    , m_partialProfitCounter(0)
 {
     SetMarginMode();
-    ArrayResize(m_fibonacciLevels, 6);
-    m_fibonacciLevels[0] = 23.6;
-    m_fibonacciLevels[1] = 38.2;
-    m_fibonacciLevels[2] = 50.0;
-    m_fibonacciLevels[3] = 61.8;
-    m_fibonacciLevels[4] = 78.6;
-    m_fibonacciLevels[5] =100.0;
+    
 }
 
 CTheStratExpert::~CTheStratExpert(void)
@@ -317,8 +317,11 @@ bool CTheStratExpert::InitCheckParameters()
 
 bool CTheStratExpert::InitIndicators(void)
 {
-   double m_psarStep = 0.02;
-   double m_psarMaximum = 0.2;
+    if(m_trailingStop != EnTrailingStop::Use_PSAR)
+        return true;
+        
+    double m_psarStep = 0.02;
+    double m_psarMaximum = 0.2;
      if(!m_sar.Create(m_symbol.Name(),m_entryTimeframe, m_psarStep, m_psarMaximum))
      {
         printf(__FUNCTION__+": error initializing object");
@@ -361,10 +364,10 @@ bool CTheStratExpert::LongClosed(void)
             double openPrice = m_position.PriceOpen();
             double price = m_position.PriceCurrent();
             
-            if(price>= openPrice+fiboPriceOffset) {
+            if(price>= openPrice+fiboPriceOffset ) {
                 
                 double minLotes = m_symbol.LotsMin();
-                double PositionSize = (m_position.Volume() / 4.0)*2.0;
+                double PositionSize = (m_position.Volume() / 2.0);
                 if(PositionSize < minLotes) {
                     PositionSize = m_position.Volume() / 2.0;
                 }
@@ -386,6 +389,11 @@ bool CTheStratExpert::LongClosed(void)
                     if(m_trade.Sell(PositionSize, _Symbol, 0.0, 0.0, 0.0, StringFormat("Partial profit: %d", m_partialProfitCounter)))
                     {
                         m_partialProfitCounter++;
+                        
+                        double tp = m_position.TakeProfit();
+                        double new_sl = openPrice;
+                        // m_trade.PositionModify(m_position.Ticket(), Round(new_sl), Round(tp));
+
                     }
                 }
             }
@@ -427,13 +435,10 @@ bool CTheStratExpert::ShortClosed(void)
             double openPrice = m_position.PriceOpen();
             double price = m_position.PriceCurrent();
             
-            if(price <= openPrice-fiboPriceOffset) {
+            if(price <= openPrice-fiboPriceOffset ) {
                 
                 double minLotes = m_symbol.LotsMin();
-                double PositionSize = (m_position.Volume() / 4.0)*2.0;
-                if(PositionSize < minLotes) {
-                    PositionSize = m_position.Volume() / 2.0;
-                }
+                double PositionSize = (m_openPositionVolumne / size);
                 
                 if(PositionSize < minLotes) {
                     PositionSize = m_position.Volume();
@@ -452,6 +457,11 @@ bool CTheStratExpert::ShortClosed(void)
                     if(m_trade.Buy(PositionSize, _Symbol, 0.0, 0.0, 0.0, StringFormat("Partial profit: %d", m_partialProfitCounter)))
                     {
                         m_partialProfitCounter++;
+                        
+                        double tp = m_position.TakeProfit();
+                        double new_sl = openPrice;
+                        // m_trade.PositionModify(m_position.Ticket(), Round(new_sl), Round(tp));
+
                     }
                 }
             }
@@ -539,6 +549,8 @@ bool CTheStratExpert::LongOpened(void)
 {
     bool result = false;
     double longStopLoss = Round(m_c_cur_1.GetLow()); //  - CalculateNormalizedDigits() - m_symbol.Spread();
+    //double diff = m_c_cur_1.GetHigh() - m_c_cur_1.GetLow();
+    //longStopLoss = m_c_cur_1.GetHigh() - (diff * 0.62);
 
     //--- check for long position (BUY) possibility
     if ((m_c_htf1.TwoUp() || m_c_htf1.Three()) && m_c_htf1.IsGreen() &&
@@ -621,7 +633,9 @@ bool CTheStratExpert::LongOpened(void)
 bool CTheStratExpert::ShortOpened(void)
 {
     double shortStopLoss = Round( m_c_cur_1.GetHigh() ); // + CalculateNormalizedDigits() + m_symbol.Spread();
-
+    //double diff = m_c_cur_1.GetHigh() - m_c_cur_1.GetLow();
+    //shortStopLoss = m_c_cur_1.GetLow() + (diff * 0.62);
+    
     bool result = false;
     //--- check for short position (SELL) possibility
     if ((m_c_htf1.TwoDown() || m_c_htf1.Three()) && m_c_htf1.IsRed() &&
@@ -739,6 +753,7 @@ bool CTheStratExpert::BuyMarket(double stopLoss, string comment)
             m_isBarBurned = true;
             m_partialProfitCounter=0;
             m_openPositionIndex = m_c_cur_1.BarIndex();
+            m_openPositionVolumne = lots;
 
             printf("Position by %s to be opened", Symbol());
         }
@@ -789,6 +804,8 @@ bool CTheStratExpert::SellMarket(double stopLoss, string comment)
             m_isBarBurned = true;
             m_partialProfitCounter=0;
             m_openPositionIndex = m_c_cur_1.BarIndex();
+            m_openPositionVolumne = lots;
+
             printf("Position by %s to be opened", Symbol());
         }
         else
