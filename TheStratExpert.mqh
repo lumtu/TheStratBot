@@ -391,9 +391,11 @@ bool CTheStratExpert::LongClosed(void)
                         m_partialProfitCounter++;
                         
                         double tp = m_position.TakeProfit();
-                        double new_sl = openPrice;
-                        // m_trade.PositionModify(m_position.Ticket(), Round(new_sl), Round(tp));
-
+                        double new_sl = m_symbol.NormalizePrice( low+fiboPriceOffset);
+                        if( new_sl < openPrice && new_sl > m_position.StopLoss())
+                        {
+                            m_trade.PositionModify(m_position.Ticket(), Round(new_sl), Round(tp));
+                        }
                     }
                 }
             }
@@ -459,8 +461,11 @@ bool CTheStratExpert::ShortClosed(void)
                         m_partialProfitCounter++;
                         
                         double tp = m_position.TakeProfit();
-                        double new_sl = openPrice;
-                        // m_trade.PositionModify(m_position.Ticket(), Round(new_sl), Round(tp));
+                        double new_sl = m_symbol.NormalizePrice( high-fiboPriceOffset );
+                        if( new_sl > openPrice && new_sl < m_position.StopLoss())
+                        {
+                            m_trade.PositionModify(m_position.Ticket(), Round(new_sl), Round(tp));
+                        }
 
                     }
                 }
