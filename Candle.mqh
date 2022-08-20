@@ -34,6 +34,7 @@ public:
     int BarIndex() const {return m_index;}
     ENUM_TIMEFRAMES Period() const { return m_period;}
     
+    double Diff(){ return GetHigh()-GetLow(); }
     double GetHigh();
     double GetLow();
     double IsGreen();

@@ -98,7 +98,11 @@ public:
                     ENUM_TIMEFRAMES entryTF,
                     ENUM_TIMEFRAMES lowHigherTF,
                     ENUM_TIMEFRAMES midHigherTF,
-                    ENUM_TIMEFRAMES bigHigherTF);
+                    ENUM_TIMEFRAMES bigHigherTF,
+                    int barShiftTF1,
+                    int barShiftTF2,
+                    int barShiftTF3);
+                    
     ~CTheStratExpert(void);
     bool Init(void);
     void Deinit(void);
@@ -184,7 +188,10 @@ CTheStratExpert::CTheStratExpert(ENUM_TIMEFRAMES exitTF,
                                  ENUM_TIMEFRAMES entryTF,
                                  ENUM_TIMEFRAMES lowHigherTF,
                                  ENUM_TIMEFRAMES midHigherTF,
-                                 ENUM_TIMEFRAMES bigHigherTF)
+                                 ENUM_TIMEFRAMES bigHigherTF,
+                                 int barShiftTF1,
+                                 int barShiftTF2,
+                                 int barShiftTF3)
     : m_adjusted_point(0)
     , m_useMoneyInsteadOfPercentage(false)
     , m_useEquityInsteadOfBalance(true)
@@ -196,9 +203,9 @@ CTheStratExpert::CTheStratExpert(ENUM_TIMEFRAMES exitTF,
     , m_c_cur_1(entryTF, 1)
     , m_c_cur_2(entryTF, 2)
     , m_c_cur_3(entryTF, 3)
-    , m_c_htf1(lowHigherTF, 0)
-    , m_c_htf2(midHigherTF, 0)
-    , m_c_htf3(bigHigherTF, 0)
+    , m_c_htf1(lowHigherTF, barShiftTF1)
+    , m_c_htf2(midHigherTF, barShiftTF2)
+    , m_c_htf3(bigHigherTF, barShiftTF3)
     , m_useTheStratExit(false)
     , m_exitTimeframe(exitTF)
     , m_entryTimeframe(entryTF)
